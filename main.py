@@ -25,7 +25,7 @@ REPORTS_CHANNEL_ID = 1516165426105811096  # ⚠️ YAHAN APNE #game-reports CHAN
 
 intents = discord.Intents.default()
 intents.message_content = True 
-intents.members = True # Members list check karne ke liye zaroori hai
+intents.members = True 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- DATABASE LOGIC ---
@@ -59,7 +59,7 @@ async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
     bot.tree.copy_global_to(guild=MY_GUILD)
     await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is LIVE with Admin Force Join & Report System! 🛠️")
+    print("Bot is LIVE with Jail & Police Mod system! 🚓")
 
 # --- TWO-WAY CROSS CHAT ---
 @bot.event
@@ -87,12 +87,62 @@ async def on_message(message):
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCrossChat", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(cross_data))
     await message.add_reaction("✅")
 
-# --- ROBLOX SE ROLE CHECK PERMISSION REQUEST (For Force Join) ---
-@bot.event
-async def on_raw_reaction_add(payload):
-    pass # Reserved for future extensions
+# --- JAIL COMMAND (NEW) ---
+@bot.tree.command(name="jail", description="Arrest and cage a player in jail")
+@app_commands.check(is_mod)
+async def slash_jail(interaction: discord.Interaction, username: str, reason: str, duration: int = 0):
+    await interaction.response.defer()
+    
+    # Save jail state in Roblox DataStore using API
+    # 0 mins means Permanent Jail
+    # We send command via MessagingService to capture active server players
+    msg_data = {
+        "message": json.dumps({
+            "Command": "Jail",
+            "Username": username,
+            "Reason": reason,
+            "Duration": duration,
+            "Mod": interaction.user.name
+        })
+    }
+    
+    response = requests.post(
+        f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", 
+        headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, 
+        data=json.dumps(msg_data)
+    )
+    
+    dur_text = f"{duration} Minutes" if duration > 0 else "Permanent"
+    if response.status_code in [200, 204]:
+        await interaction.followup.send(f"⛓️ **{username} has been Jailed!**\n**Duration:** {dur_text}\n**Reason:** {reason}")
+        await send_log("⛓️ Player Jailed", f"**User:** {username}\n**Reason:** {reason}\n**Duration:** {dur_text}\n**Mod:** {interaction.user.name}", discord.Color.purple())
+    else:
+        await interaction.followup.send("❌ Roblox API Error!")
 
-# Webhook Handler for Internal API Requests if needed (handled in Roblox directly via proxy)
+# --- UNJAIL COMMAND (NEW) ---
+@bot.tree.command(name="unjail", description="Release a player from jail")
+@app_commands.check(is_mod)
+async def slash_unjail(interaction: discord.Interaction, username: str):
+    await interaction.response.defer()
+    
+    msg_data = {
+        "message": json.dumps({
+            "Command": "Unjail",
+            "Username": username
+        })
+    }
+    
+    response = requests.post(
+        f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", 
+        headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, 
+        data=json.dumps(msg_data)
+    )
+    
+    if response.status_code in [200, 204]:
+        await interaction.followup.send(f"🔓 **{username} has been set free from jail!**")
+        await send_log("🔓 Player Unjailed", f"**User:** {username}\n**Mod:** {interaction.user.name}", discord.Color.blue())
+    else:
+        await interaction.followup.send("❌ Roblox API Error!")
 
 # --- GLOBAL SERVER SHUTDOWN ---
 @bot.tree.command(name="shutdown", description="Shutdown all game servers for an update with a timer")
@@ -102,9 +152,6 @@ async def slash_shutdown(interaction: discord.Interaction, reason: str, time: in
     msg_data = {"message": json.dumps({"Reason": reason, "Time": time})}
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordShutdown", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
     await interaction.followup.send(f"🛑 **Global Shutdown Initiated!** Saare servers {time} seconds mein close ho jayenge.")
-
-# --- GET ADMIN ROLES LIST COMMAND (For Roblox to fetch via standard HTTP if needed) ---
-# Roblox can directly read verified links from database file if hosted properly, but we'll use a smart workaround inside Roblox script using our existing linked account system.
 
 # --- ALL OTHER SLASH COMMANDS ---
 
