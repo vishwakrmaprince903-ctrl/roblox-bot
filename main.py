@@ -9,21 +9,22 @@ import string
 from discord.ext import commands
 from discord import app_commands
 
-# Tokens and Keys (Railway Variables se aayenge)
+# Tokens and Keys (Railway Variables)
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 ROBLOX_API_KEY = os.getenv("ROBLOX_API_KEY")
 
-# Tere Server IDs (Pehle se set hain)
+# Tere Server IDs
 UNIVERSE_ID = "558298"
 MY_GUILD_ID = 1515815434115481771
 MOD_ROLE_ID = 1515815434115481775
-LOG_CHANNEL_ID = 1515815434811740173
+LOG_CHANNEL_ID = 1515815434811740173       # Yahan ban/kick logs jayenge
+CHAT_CHANNEL_ID = 1515986089213427803      # <-- TERI NAYI ID YAHAN SET HO GAYI!
 
 intents = discord.Intents.default()
 intents.message_content = True # Cross-chat padhne ke liye zaroori hai
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- DATABASE LOGIC (Links save karne ke liye) ---
+# --- DATABASE LOGIC ---
 def load_links():
     try:
         with open("links.json", "r") as f:
@@ -59,8 +60,8 @@ async def on_ready():
 # --- TWO-WAY CROSS CHAT (Discord to Roblox) ---
 @bot.event
 async def on_message(message):
-    # Agar bot ka message hai, ya dusre channel ka hai, toh ignore
-    if message.author.bot or message.channel.id != LOG_CHANNEL_ID:
+    # NAYI ID YAHAN CHECK HO RAHI HAI
+    if message.author.bot or message.channel.id != CHAT_CHANNEL_ID:
         return
     
     links = load_links()
