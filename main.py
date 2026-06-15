@@ -59,7 +59,7 @@ async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
     bot.tree.copy_global_to(guild=MY_GUILD)
     await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is LIVE with Jail & Police Mod system! 🚓")
+    print("Bot is LIVE with COSMIC METEOR NUKE! ☄️💥")
 
 # --- TWO-WAY CROSS CHAT ---
 @bot.event
@@ -87,21 +87,16 @@ async def on_message(message):
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCrossChat", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(cross_data))
     await message.add_reaction("✅")
 
-# --- JAIL COMMAND (NEW) ---
-@bot.tree.command(name="jail", description="Arrest and cage a player in jail")
+# --- COSMIC NUKE / METEOR STRIKE COMMAND (NEW! ☄️) ---
+@bot.tree.command(name="nuke", description="Launch a massive cosmic meteor strike on a player with real physics and sounds")
 @app_commands.check(is_mod)
-async def slash_jail(interaction: discord.Interaction, username: str, reason: str, duration: int = 0):
+async def slash_nuke(interaction: discord.Interaction, username: str):
     await interaction.response.defer()
     
-    # Save jail state in Roblox DataStore using API
-    # 0 mins means Permanent Jail
-    # We send command via MessagingService to capture active server players
     msg_data = {
         "message": json.dumps({
-            "Command": "Jail",
+            "Command": "Nuke",
             "Username": username,
-            "Reason": reason,
-            "Duration": duration,
             "Mod": interaction.user.name
         })
     }
@@ -112,48 +107,38 @@ async def slash_jail(interaction: discord.Interaction, username: str, reason: st
         data=json.dumps(msg_data)
     )
     
-    dur_text = f"{duration} Minutes" if duration > 0 else "Permanent"
     if response.status_code in [200, 204]:
-        await interaction.followup.send(f"⛓️ **{username} has been Jailed!**\n**Duration:** {dur_text}\n**Reason:** {reason}")
-        await send_log("⛓️ Player Jailed", f"**User:** {username}\n**Reason:** {reason}\n**Duration:** {dur_text}\n**Mod:** {interaction.user.name}", discord.Color.purple())
+        await interaction.followup.send(f"☄️🚀 **COSMIC NUKE LAUNCHED!** A massive meteor is heading towards `{username}`'s head!")
+        await send_log("☄️ Cosmic Nuke Launched", f"**Target:** {username}\n**Launched By:** {interaction.user.name}\n**Status:** Impact Imminent", discord.Color.dark_orange())
     else:
         await interaction.followup.send("❌ Roblox API Error!")
 
-# --- UNJAIL COMMAND (NEW) ---
+# --- ALL OTHER SLASH COMMANDS (JAIL, SHUTDOWN, BAN, ETC.) ---
+
+@bot.tree.command(name="jail", description="Arrest and cage a player in jail")
+@app_commands.check(is_mod)
+async def slash_jail(interaction: discord.Interaction, username: str, reason: str, duration: int = 0):
+    await interaction.response.defer()
+    msg_data = {"message": json.dumps({"Command": "Jail", "Username": username, "Reason": reason, "Duration": duration, "Mod": interaction.user.name})}
+    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
+    dur_text = f"{duration} Minutes" if duration > 0 else "Permanent"
+    await interaction.followup.send(f"⛓️ **{username} Jailed!** ({dur_text})")
+
 @bot.tree.command(name="unjail", description="Release a player from jail")
 @app_commands.check(is_mod)
 async def slash_unjail(interaction: discord.Interaction, username: str):
     await interaction.response.defer()
-    
-    msg_data = {
-        "message": json.dumps({
-            "Command": "Unjail",
-            "Username": username
-        })
-    }
-    
-    response = requests.post(
-        f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", 
-        headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, 
-        data=json.dumps(msg_data)
-    )
-    
-    if response.status_code in [200, 204]:
-        await interaction.followup.send(f"🔓 **{username} has been set free from jail!**")
-        await send_log("🔓 Player Unjailed", f"**User:** {username}\n**Mod:** {interaction.user.name}", discord.Color.blue())
-    else:
-        await interaction.followup.send("❌ Roblox API Error!")
+    msg_data = {"message": json.dumps({"Command": "Unjail", "Username": username})}
+    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
+    await interaction.followup.send(f"🔓 **{username} Released!**")
 
-# --- GLOBAL SERVER SHUTDOWN ---
 @bot.tree.command(name="shutdown", description="Shutdown all game servers for an update with a timer")
 @app_commands.check(is_mod)
 async def slash_shutdown(interaction: discord.Interaction, reason: str, time: int = 60):
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Reason": reason, "Time": time})}
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordShutdown", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
-    await interaction.followup.send(f"🛑 **Global Shutdown Initiated!** Saare servers {time} seconds mein close ho jayenge.")
-
-# --- ALL OTHER SLASH COMMANDS ---
+    await interaction.followup.send(f"🛑 **Global Shutdown Initiated!**")
 
 @bot.tree.command(name="verify", description="Link your Roblox Account")
 async def slash_verify(interaction: discord.Interaction, roblox_username: str):
@@ -167,9 +152,7 @@ async def slash_verify(interaction: discord.Interaction, roblox_username: str):
     secret_code = "Verify-" + "".join(random.choices(string.ascii_letters + string.digits, k=6))
     
     embed = discord.Embed(title="🔗 Link Roblox Account", color=discord.Color.gold())
-    embed.add_field(name="Step 1", value="Roblox mein Settings -> About section khol.", inline=False)
     embed.add_field(name="Step 2", value=f"Apne About mein ye code paste kar:\n**`{secret_code}`**", inline=False)
-    embed.add_field(name="Step 3", value="Save kar aur niche wala button daba.", inline=False)
     
     class VerifyView(discord.ui.View):
         def __init__(self, discord_id, roblox_id, roblox_username, code):
@@ -181,17 +164,15 @@ async def slash_verify(interaction: discord.Interaction, roblox_username: str):
 
         @discord.ui.button(label="Check My Profile", style=discord.ButtonStyle.green)
         async def check_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-            if interaction.user.id != self.discord_id:
-                await interaction.response.send_message("❌ Ye tera verification nahi hai!", ephemeral=True)
-                return
+            if interaction.user.id != self.discord_id: return
             r = requests.get(f"https://users.roblox.com/v1/users/{self.roblox_id}")
             desc = r.json().get("description", "")
             if self.code in desc:
                 save_link(self.discord_id, self.roblox_username)
-                await interaction.response.send_message(f"🎉 **Success!** Tera account link ho gaya hai as `{self.roblox_username}`!")
+                await interaction.response.send_message(f"🎉 **Success!** Linked as `{self.roblox_username}`!")
                 self.stop()
             else:
-                await interaction.response.send_message("❌ Code nahi mila! Apna 'About' section theek se save kar.", ephemeral=True)
+                await interaction.response.send_message("❌ Code nahi mila!", ephemeral=True)
                 
     view = VerifyView(interaction.user.id, roblox_id, roblox_username, secret_code)
     await interaction.followup.send(embed=embed, view=view)
@@ -202,9 +183,7 @@ async def slash_ban(interaction: discord.Interaction, username: str, reason: str
     await interaction.response.defer()
     r = requests.post("https://users.roblox.com/v1/usernames/users", json={"usernames": [username], "excludeBannedUsers": False})
     data = r.json().get("data")
-    if not data:
-        await interaction.followup.send("❌ Player nahi mila!")
-        return
+    if not data: return
     user_id = str(data[0]["id"])
     ds_url = f"https://apis.roblox.com/datastores/v1/universes/{UNIVERSE_ID}/standard-datastores/datastore/entries/entry?datastoreName=BanList&entryKey={user_id}"
     ban_info = json.dumps({"Reason": reason, "Mod": interaction.user.name})
@@ -213,7 +192,6 @@ async def slash_ban(interaction: discord.Interaction, username: str, reason: str
     msg_data = {"message": json.dumps({"Command": "Ban", "Username": username, "Reason": reason})}
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
     await interaction.followup.send(f"🚨 {username} banned.")
-    await send_log("🚨 Player Banned", f"**User:** {username}\n**Reason:** {reason}\n**Mod:** {interaction.user.name}", discord.Color.red())
 
 @bot.tree.command(name="unban", description="Unban a player")
 @app_commands.check(is_mod)
@@ -221,9 +199,7 @@ async def slash_unban(interaction: discord.Interaction, username: str):
     await interaction.response.defer()
     r = requests.post("https://users.roblox.com/v1/usernames/users", json={"usernames": [username], "excludeBannedUsers": False})
     data = r.json().get("data")
-    if not data:
-        await interaction.followup.send("❌ Player nahi mila!")
-        return
+    if not data: return
     user_id = str(data[0]["id"])
     requests.delete(f"https://apis.roblox.com/datastores/v1/universes/{UNIVERSE_ID}/standard-datastores/datastore/entries/entry?datastoreName=BanList&entryKey={user_id}", headers={"x-api-key": ROBLOX_API_KEY})
     await interaction.followup.send(f"✅ {username} unbanned.")
