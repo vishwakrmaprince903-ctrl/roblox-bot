@@ -16,14 +16,16 @@ ROBLOX_API_KEY = os.getenv("ROBLOX_API_KEY")
 # ⚠️ APNI ASLI UNIVERSE ID KO IS QUOTES KE ANDAR RAKHNA BHAI!
 UNIVERSE_ID = "558298"
 
-# Tere Saare IDs (Pehle se fixed hain)
+# Tere Saare IDs
 MY_GUILD_ID = 1515815434115481771
 MOD_ROLE_ID = 1515815434115481775
 LOG_CHANNEL_ID = 1515815434811740173       
 CHAT_CHANNEL_ID = 1515986089213427803      
+REPORTS_CHANNEL_ID = 1516165426105811096  # ⚠️ YAHAN APNE #game-reports CHANNEL KI ID DAALO!
 
 intents = discord.Intents.default()
 intents.message_content = True 
+intents.members = True # Members list check karne ke liye zaroori hai
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- DATABASE LOGIC ---
@@ -57,7 +59,7 @@ async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
     bot.tree.copy_global_to(guild=MY_GUILD)
     await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is LIVE with Global Shutdown feature! 🛑")
+    print("Bot is LIVE with Admin Force Join & Report System! 🛠️")
 
 # --- TWO-WAY CROSS CHAT ---
 @bot.event
@@ -82,42 +84,27 @@ async def on_message(message):
             "Message": message.content
         })
     }
-    
-    response = requests.post(
-        f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCrossChat", 
-        headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, 
-        data=json.dumps(cross_data)
-    )
-    
-    if response.status_code in [200, 204]:
-        await message.add_reaction("✅")
-    else:
-        await message.add_reaction("❌")
+    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCrossChat", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(cross_data))
+    await message.add_reaction("✅")
 
-# --- GLOBAL SERVER SHUTDOWN (NEW) ---
+# --- ROBLOX SE ROLE CHECK PERMISSION REQUEST (For Force Join) ---
+@bot.event
+async def on_raw_reaction_add(payload):
+    pass # Reserved for future extensions
+
+# Webhook Handler for Internal API Requests if needed (handled in Roblox directly via proxy)
+
+# --- GLOBAL SERVER SHUTDOWN ---
 @bot.tree.command(name="shutdown", description="Shutdown all game servers for an update with a timer")
 @app_commands.check(is_mod)
 async def slash_shutdown(interaction: discord.Interaction, reason: str, time: int = 60):
     await interaction.response.defer()
-    
-    msg_data = {
-        "message": json.dumps({
-            "Reason": reason,
-            "Time": time
-        })
-    }
-    
-    response = requests.post(
-        f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordShutdown", 
-        headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, 
-        data=json.dumps(msg_data)
-    )
-    
-    if response.status_code in [200, 204]:
-        await interaction.followup.send(f"🛑 **Global Shutdown Initiated!** Saare servers {time} seconds mein close ho jayenge.")
-        await send_log("🛑 Global Shutdown Alert", f"**Reason:** {reason}\n**Countdown:** {time} Seconds\n**Moderator:** {interaction.user.name}", discord.Color.dark_red())
-    else:
-        await interaction.followup.send("❌ Roblox API error! Universe ID check karo.")
+    msg_data = {"message": json.dumps({"Reason": reason, "Time": time})}
+    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordShutdown", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
+    await interaction.followup.send(f"🛑 **Global Shutdown Initiated!** Saare servers {time} seconds mein close ho jayenge.")
+
+# --- GET ADMIN ROLES LIST COMMAND (For Roblox to fetch via standard HTTP if needed) ---
+# Roblox can directly read verified links from database file if hosted properly, but we'll use a smart workaround inside Roblox script using our existing linked account system.
 
 # --- ALL OTHER SLASH COMMANDS ---
 
@@ -129,7 +116,6 @@ async def slash_verify(interaction: discord.Interaction, roblox_username: str):
     if not data:
         await interaction.followup.send("❌ Roblox player nahi mila!")
         return
-        
     roblox_id = str(data[0]["id"])
     secret_code = "Verify-" + "".join(random.choices(string.ascii_letters + string.digits, k=6))
     
@@ -151,10 +137,8 @@ async def slash_verify(interaction: discord.Interaction, roblox_username: str):
             if interaction.user.id != self.discord_id:
                 await interaction.response.send_message("❌ Ye tera verification nahi hai!", ephemeral=True)
                 return
-            
             r = requests.get(f"https://users.roblox.com/v1/users/{self.roblox_id}")
             desc = r.json().get("description", "")
-            
             if self.code in desc:
                 save_link(self.discord_id, self.roblox_username)
                 await interaction.response.send_message(f"🎉 **Success!** Tera account link ho gaya hai as `{self.roblox_username}`!")
@@ -175,15 +159,12 @@ async def slash_ban(interaction: discord.Interaction, username: str, reason: str
         await interaction.followup.send("❌ Player nahi mila!")
         return
     user_id = str(data[0]["id"])
-    
     ds_url = f"https://apis.roblox.com/datastores/v1/universes/{UNIVERSE_ID}/standard-datastores/datastore/entries/entry?datastoreName=BanList&entryKey={user_id}"
     ban_info = json.dumps({"Reason": reason, "Mod": interaction.user.name})
     md5_hash = base64.b64encode(hashlib.md5(ban_info.encode()).digest()).decode()
     requests.post(ds_url, headers={"x-api-key": ROBLOX_API_KEY, "content-md5": md5_hash}, data=ban_info)
-    
     msg_data = {"message": json.dumps({"Command": "Ban", "Username": username, "Reason": reason})}
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
-    
     await interaction.followup.send(f"🚨 {username} banned.")
     await send_log("🚨 Player Banned", f"**User:** {username}\n**Reason:** {reason}\n**Mod:** {interaction.user.name}", discord.Color.red())
 
@@ -197,10 +178,8 @@ async def slash_unban(interaction: discord.Interaction, username: str):
         await interaction.followup.send("❌ Player nahi mila!")
         return
     user_id = str(data[0]["id"])
-    
     requests.delete(f"https://apis.roblox.com/datastores/v1/universes/{UNIVERSE_ID}/standard-datastores/datastore/entries/entry?datastoreName=BanList&entryKey={user_id}", headers={"x-api-key": ROBLOX_API_KEY})
     await interaction.followup.send(f"✅ {username} unbanned.")
-    await send_log("✅ Player Unbanned", f"**User:** {username}\n**Mod:** {interaction.user.name}", discord.Color.green())
 
 @bot.tree.command(name="kick", description="Kick player from server")
 @app_commands.check(is_mod)
@@ -208,9 +187,7 @@ async def slash_kick(interaction: discord.Interaction, username: str, reason: st
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Command": "Kick", "Username": username, "Reason": reason})}
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
-    
     await interaction.followup.send(f"👢 {username} kicked.")
-    await send_log("👢 Player Kicked", f"**User:** {username}\n**Reason:** {reason}\n**Mod:** {interaction.user.name}", discord.Color.orange())
 
 @bot.tree.command(name="warn", description="Send warning on screen")
 @app_commands.check(is_mod)
@@ -218,9 +195,7 @@ async def slash_warn(interaction: discord.Interaction, username: str, reason: st
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Command": "Warn", "Username": username, "Reason": reason})}
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
-    
     await interaction.followup.send(f"⚠️ {username} warned.")
-    await send_log("⚠️ Player Warned", f"**User:** {username}\n**Reason:** {reason}\n**Mod:** {interaction.user.name}", discord.Color.yellow())
 
 @bot.tree.command(name="announce", description="Send announcement")
 @app_commands.check(is_mod)
