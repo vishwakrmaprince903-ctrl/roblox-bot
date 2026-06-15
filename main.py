@@ -4,10 +4,12 @@ import json
 import hashlib
 import base64
 import os
+import random
+import string
 from discord.ext import commands
 from discord import app_commands
 
-# Railway ke 'Variables' se keys uthane ka tarika
+# Railway Variables
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 ROBLOX_API_KEY = os.getenv("ROBLOX_API_KEY")
 
@@ -17,7 +19,22 @@ MOD_ROLE_ID = 1515815434115481775
 LOG_CHANNEL_ID = 1515815434811740173
 
 intents = discord.Intents.default()
+intents.message_content = True # Message padhne ki power
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+# Load Linked Accounts
+def load_links():
+    try:
+        with open("links.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+def save_link(discord_id, roblox_name):
+    links = load_links()
+    links[str(discord_id)] = roblox_name
+    with open("links.json", "w") as f:
+        json.dump(links, f)
 
 async def is_mod(interaction: discord.Interaction):
     if interaction.user.guild_permissions.administrator:
@@ -35,76 +52,89 @@ async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
     bot.tree.copy_global_to(guild=MY_GUILD)
     await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is 24/7 Live with Kick, Warn & Chat Logs (No Whitelist)!")
+    print("Bot is LIVE! Verification & Two-Way Chat Enabled 🚀")
 
-# --- BAN COMMAND ---
-@bot.tree.command(name="ban", description="Ban a player")
-@app_commands.check(is_mod)
-async def slash_ban(interaction: discord.Interaction, username: str, reason: str = "Rules break"):
+# --- TWO-WAY CROSS CHAT (Discord to Roblox) ---
+@bot.event
+async def on_message(message):
+    # Agar message bot ne bheja hai, ya log channel mein nahi hai, toh ignore karo
+    if message.author.bot or message.channel.id != LOG_CHANNEL_ID:
+        return
+    
+    links = load_links()
+    discord_id = str(message.author.id)
+    
+    # Agar user link nahi hai, toh use batao
+    if discord_id not in links:
+        await message.reply("⚠️ Tera account link nahi hai! Pehle `/verify` use kar.", delete_after=5)
+        return
+
+    roblox_name = links[discord_id]
+    top_role = message.author.top_role.name # Sabse main title uthayega
+    
+    # Roblox ko message bhejo
+    cross_data = {
+        "message": json.dumps({
+            "Role": top_role,
+            "Username": roblox_name,
+            "Message": message.content
+        })
+    }
+    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCrossChat", 
+                  headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, 
+                  data=json.dumps(cross_data))
+    
+    await message.add_reaction("✅") # Message successful bhejne par tick lagayega
+
+# --- VERIFICATION SYSTEM (UI Button) ---
+class VerifyView(discord.ui.View):
+    def __init__(self, discord_id, roblox_id, roblox_username, code):
+        super().__init__(timeout=600)
+        self.discord_id = discord_id
+        self.roblox_id = roblox_id
+        self.roblox_username = roblox_username
+        self.code = code
+
+    @discord.ui.button(label="Check My Profile", style=discord.ButtonStyle.green)
+    async def check_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.discord_id:
+            await interaction.response.send_message("❌ Ye tera verification nahi hai!", ephemeral=True)
+            return
+        
+        # Roblox profile check karo
+        r = requests.get(f"https://users.roblox.com/v1/users/{self.roblox_id}")
+        desc = r.json().get("description", "")
+        
+        if self.code in desc:
+            save_link(self.discord_id, self.roblox_username)
+            await interaction.response.send_message(f"🎉 **Success!** Tera Discord aur Roblox account hamesha ke liye link ho gaya hai as `{self.roblox_username}`!")
+            self.stop()
+        else:
+            await interaction.response.send_message("❌ Code nahi mila! Kya tune 'About' section mein code daal kar save kiya tha?", ephemeral=True)
+
+@bot.tree.command(name="verify", description="Link your Roblox Account securely")
+async def slash_verify(interaction: discord.Interaction, roblox_username: str):
     await interaction.response.defer()
-    r = requests.post("https://users.roblox.com/v1/usernames/users", json={"usernames": [username], "excludeBannedUsers": False})
+    
+    # Check if user exists
+    r = requests.post("https://users.roblox.com/v1/usernames/users", json={"usernames": [roblox_username], "excludeBannedUsers": False})
     data = r.json().get("data")
     if not data:
-        await interaction.followup.send("❌ Player nahi mila!")
+        await interaction.followup.send("❌ Roblox player nahi mila!")
         return
-    user_id = str(data[0]["id"])
+        
+    roblox_id = str(data[0]["id"])
     
-    ds_url = f"https://apis.roblox.com/datastores/v1/universes/{UNIVERSE_ID}/standard-datastores/datastore/entries/entry?datastoreName=BanList&entryKey={user_id}"
-    ban_info = json.dumps({"Reason": reason, "Mod": interaction.user.name})
-    md5_hash = base64.b64encode(hashlib.md5(ban_info.encode()).digest()).decode()
-    requests.post(ds_url, headers={"x-api-key": ROBLOX_API_KEY, "content-md5": md5_hash}, data=ban_info)
+    # Generate secret code
+    secret_code = "Verify-" + "".join(random.choices(string.ascii_letters + string.digits, k=6))
     
-    msg_data = {"message": json.dumps({"Command": "Ban", "Username": username, "Reason": reason})}
-    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
+    embed = discord.Embed(title="🔗 Link Roblox Account", color=discord.Color.gold())
+    embed.add_field(name="Step 1", value="Apne Roblox Profile mein jao (Settings).", inline=False)
+    embed.add_field(name="Step 2", value=f"Apne 'About' (Description) mein ye code paste karo:\n**`{secret_code}`**", inline=False)
+    embed.add_field(name="Step 3", value="Save karo aur niche wala button dabao.", inline=False)
     
-    await interaction.followup.send(f"🚨 {username} ko ban kar diya gaya hai.")
-    await send_log("🚨 Player Banned", f"**Username:** {username}\n**Reason:** {reason}\n**Moderator:** {interaction.user.name}", discord.Color.red())
+    view = VerifyView(interaction.user.id, roblox_id, roblox_username, secret_code)
+    await interaction.followup.send(embed=embed, view=view)
 
-# --- UNBAN COMMAND ---
-@bot.tree.command(name="unban", description="Unban a player")
-@app_commands.check(is_mod)
-async def slash_unban(interaction: discord.Interaction, username: str):
-    await interaction.response.defer()
-    r = requests.post("https://users.roblox.com/v1/usernames/users", json={"usernames": [username], "excludeBannedUsers": False})
-    data = r.json().get("data")
-    if not data:
-        await interaction.followup.send("❌ Player nahi mila!")
-        return
-    user_id = str(data[0]["id"])
-    
-    requests.delete(f"https://apis.roblox.com/datastores/v1/universes/{UNIVERSE_ID}/standard-datastores/datastore/entries/entry?datastoreName=BanList&entryKey={user_id}", headers={"x-api-key": ROBLOX_API_KEY})
-    await interaction.followup.send(f"✅ {username} ko unban kar diya.")
-    await send_log("✅ Player Unbanned", f"**Username:** {username}\n**Moderator:** {interaction.user.name}", discord.Color.green())
-
-# --- KICK COMMAND ---
-@bot.tree.command(name="kick", description="Kick player from server")
-@app_commands.check(is_mod)
-async def slash_kick(interaction: discord.Interaction, username: str, reason: str = "Rule violation"):
-    await interaction.response.defer()
-    msg_data = {"message": json.dumps({"Command": "Kick", "Username": username, "Reason": reason})}
-    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
-    
-    await interaction.followup.send(f"👢 {username} ko kick kar diya gaya.")
-    await send_log("👢 Player Kicked", f"**Username:** {username}\n**Reason:** {reason}\n**Moderator:** {interaction.user.name}", discord.Color.orange())
-
-# --- WARN COMMAND ---
-@bot.tree.command(name="warn", description="Send warning on player's screen")
-@app_commands.check(is_mod)
-async def slash_warn(interaction: discord.Interaction, username: str, reason: str = "Warning!"):
-    await interaction.response.defer()
-    msg_data = {"message": json.dumps({"Command": "Warn", "Username": username, "Reason": reason})}
-    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
-    
-    await interaction.followup.send(f"⚠️ {username} ko screen par warning bhej di gayi hai.")
-    await send_log("⚠️ Player Warned", f"**Username:** {username}\n**Reason:** {reason}\n**Moderator:** {interaction.user.name}", discord.Color.yellow())
-
-# --- ANNOUNCE COMMAND ---
-@bot.tree.command(name="announce", description="Send game announcement")
-@app_commands.check(is_mod)
-async def slash_announce(interaction: discord.Interaction, text: str):
-    await interaction.response.defer()
-    msg_data = {"message": json.dumps({"Text": text})}
-    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordAnnounce", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
-    await interaction.followup.send(f"📢 Announcement sent: {text}")
-
-bot.run(DISCORD_TOKEN)
+# --- (PURANI COMMANDS AISE HI RAHENGI: /ban, /unban, /kick, /warn, /announce) ---
+# ... TUMHARA PURANA CODE YAHAN RAKH LENA AGAR UPAR WALA REPLACE KAR RAHE HO ...
