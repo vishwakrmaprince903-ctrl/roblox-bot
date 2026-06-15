@@ -35,7 +35,7 @@ async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
     bot.tree.copy_global_to(guild=MY_GUILD)
     await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is 24/7 Live with Kick, Warn & Chat Logs!")
+    print("Bot is 24/7 Live with Kick, Warn & Chat Logs (No Whitelist)!")
 
 # --- BAN COMMAND ---
 @bot.tree.command(name="ban", description="Ban a player")
@@ -76,7 +76,7 @@ async def slash_unban(interaction: discord.Interaction, username: str):
     await interaction.followup.send(f"✅ {username} ko unban kar diya.")
     await send_log("✅ Player Unbanned", f"**Username:** {username}\n**Moderator:** {interaction.user.name}", discord.Color.green())
 
-# --- KICK COMMAND (NEW) ---
+# --- KICK COMMAND ---
 @bot.tree.command(name="kick", description="Kick player from server")
 @app_commands.check(is_mod)
 async def slash_kick(interaction: discord.Interaction, username: str, reason: str = "Rule violation"):
@@ -87,7 +87,7 @@ async def slash_kick(interaction: discord.Interaction, username: str, reason: st
     await interaction.followup.send(f"👢 {username} ko kick kar diya gaya.")
     await send_log("👢 Player Kicked", f"**Username:** {username}\n**Reason:** {reason}\n**Moderator:** {interaction.user.name}", discord.Color.orange())
 
-# --- WARN COMMAND (NEW) ---
+# --- WARN COMMAND ---
 @bot.tree.command(name="warn", description="Send warning on player's screen")
 @app_commands.check(is_mod)
 async def slash_warn(interaction: discord.Interaction, username: str, reason: str = "Warning!"):
@@ -106,39 +106,5 @@ async def slash_announce(interaction: discord.Interaction, text: str):
     msg_data = {"message": json.dumps({"Text": text})}
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordAnnounce", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
     await interaction.followup.send(f"📢 Announcement sent: {text}")
-
-# --- WHITELIST COMMANDS ---
-@bot.tree.command(name="whitelist", description="Add player to Whitelist")
-@app_commands.check(is_mod)
-async def slash_whitelist(interaction: discord.Interaction, username: str):
-    await interaction.response.defer()
-    r = requests.post("https://users.roblox.com/v1/usernames/users", json={"usernames": [username], "excludeBannedUsers": False})
-    data = r.json().get("data")
-    if not data:
-        await interaction.followup.send("❌ Player nahi mila!")
-        return
-    user_id = str(data[0]["id"])
-    
-    ds_url = f"https://apis.roblox.com/datastores/v1/universes/{UNIVERSE_ID}/standard-datastores/datastore/entries/entry?datastoreName=WhitelistStore&entryKey={user_id}"
-    wl_info = json.dumps({"Whitelisted": True, "Mod": interaction.user.name})
-    md5_hash = base64.b64encode(hashlib.md5(wl_info.encode()).digest()).decode()
-    requests.post(ds_url, headers={"x-api-key": ROBLOX_API_KEY, "content-md5": md5_hash}, data=wl_info)
-    
-    await interaction.followup.send(f"⚪ {username} ko Whitelist kar diya.")
-    await send_log("⚪ Player Whitelisted", f"**Username:** {username}\n**Moderator:** {interaction.user.name}", discord.Color.gold())
-
-@bot.tree.command(name="unwhitelist", description="Remove from Whitelist")
-@app_commands.check(is_mod)
-async def slash_unwhitelist(interaction: discord.Interaction, username: str):
-    await interaction.response.defer()
-    r = requests.post("https://users.roblox.com/v1/usernames/users", json={"usernames": [username], "excludeBannedUsers": False})
-    data = r.json().get("data")
-    if not data:
-        await interaction.followup.send("❌ Player nahi mila!")
-        return
-    user_id = str(data[0]["id"])
-    
-    requests.delete(f"https://apis.roblox.com/datastores/v1/universes/{UNIVERSE_ID}/standard-datastores/datastore/entries/entry?datastoreName=WhitelistStore&entryKey={user_id}", headers={"x-api-key": ROBLOX_API_KEY})
-    await interaction.followup.send(f"❌ {username} ko Whitelist se hata diya.")
 
 bot.run(DISCORD_TOKEN)
