@@ -13,15 +13,17 @@ from discord import app_commands
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 ROBLOX_API_KEY = os.getenv("ROBLOX_API_KEY")
 
-# Tere Server IDs
-UNIVERSE_ID = "558298"
+# ⚠️ APNI ASLI UNIVERSE ID KO IS QUOTES KE ANDAR RAKHNA BHAI!
+UNIVERSE_ID = "YOUR_ASLI_UNIVERSE_ID_HERE"
+
+# Tere Saare IDs (Pehle se fixed hain)
 MY_GUILD_ID = 1515815434115481771
 MOD_ROLE_ID = 1515815434115481775
-LOG_CHANNEL_ID = 1515815434811740173       # Yahan ban/kick logs jayenge
-CHAT_CHANNEL_ID = 1515986089213427803      # <-- TERI NAYI ID YAHAN SET HO GAYI!
+LOG_CHANNEL_ID = 1515815434811740173       
+CHAT_CHANNEL_ID = 1515986089213427803      
 
 intents = discord.Intents.default()
-intents.message_content = True # Cross-chat padhne ke liye zaroori hai
+intents.message_content = True 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- DATABASE LOGIC ---
@@ -55,25 +57,23 @@ async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
     bot.tree.copy_global_to(guild=MY_GUILD)
     await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is 24/7 LIVE with Full Admin Panel & Cross-Chat! 🚀")
+    print("Bot is LIVE with Global Shutdown feature! 🛑")
 
-# --- TWO-WAY CROSS CHAT (Discord to Roblox) ---
+# --- TWO-WAY CROSS CHAT ---
 @bot.event
 async def on_message(message):
-    # NAYI ID YAHAN CHECK HO RAHI HAI
     if message.author.bot or message.channel.id != CHAT_CHANNEL_ID:
         return
     
     links = load_links()
     discord_id = str(message.author.id)
     
-    # Agar account link nahi hai
     if discord_id not in links:
-        await message.reply("⚠️ Tera account link nahi hai! Pehle `/verify [RobloxName]` use kar.", delete_after=5)
+        await message.reply("⚠️ Tera account link nahi hai! Pehle `/verify` use kar.", delete_after=5)
         return
 
     roblox_name = links[discord_id]
-    top_role = message.author.top_role.name # Tera main Discord Title
+    top_role = message.author.top_role.name 
     
     cross_data = {
         "message": json.dumps({
@@ -82,38 +82,44 @@ async def on_message(message):
             "Message": message.content
         })
     }
-    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCrossChat", 
-                  headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, 
-                  data=json.dumps(cross_data))
     
-    await message.add_reaction("✅")
+    response = requests.post(
+        f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCrossChat", 
+        headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, 
+        data=json.dumps(cross_data)
+    )
+    
+    if response.status_code in [200, 204]:
+        await message.add_reaction("✅")
+    else:
+        await message.add_reaction("❌")
 
-# --- VERIFICATION SYSTEM UI ---
-class VerifyView(discord.ui.View):
-    def __init__(self, discord_id, roblox_id, roblox_username, code):
-        super().__init__(timeout=600)
-        self.discord_id = discord_id
-        self.roblox_id = roblox_id
-        self.roblox_username = roblox_username
-        self.code = code
+# --- GLOBAL SERVER SHUTDOWN (NEW) ---
+@bot.tree.command(name="shutdown", description="Shutdown all game servers for an update with a timer")
+@app_commands.check(is_mod)
+async def slash_shutdown(interaction: discord.Interaction, reason: str, time: int = 60):
+    await interaction.response.defer()
+    
+    msg_data = {
+        "message": json.dumps({
+            "Reason": reason,
+            "Time": time
+        })
+    }
+    
+    response = requests.post(
+        f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordShutdown", 
+        headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, 
+        data=json.dumps(msg_data)
+    )
+    
+    if response.status_code in [200, 204]:
+        await interaction.followup.send(f"🛑 **Global Shutdown Initiated!** Saare servers {time} seconds mein close ho jayenge.")
+        await send_log("🛑 Global Shutdown Alert", f"**Reason:** {reason}\n**Countdown:** {time} Seconds\n**Moderator:** {interaction.user.name}", discord.Color.dark_red())
+    else:
+        await interaction.followup.send("❌ Roblox API error! Universe ID check karo.")
 
-    @discord.ui.button(label="Check My Profile", style=discord.ButtonStyle.green)
-    async def check_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.discord_id:
-            await interaction.response.send_message("❌ Ye tera verification nahi hai!", ephemeral=True)
-            return
-        
-        r = requests.get(f"https://users.roblox.com/v1/users/{self.roblox_id}")
-        desc = r.json().get("description", "")
-        
-        if self.code in desc:
-            save_link(self.discord_id, self.roblox_username)
-            await interaction.response.send_message(f"🎉 **Success!** Tera account link ho gaya hai as `{self.roblox_username}`!")
-            self.stop()
-        else:
-            await interaction.response.send_message("❌ Code nahi mila! Apna 'About' section theek se save kar.", ephemeral=True)
-
-# --- ALL SLASH COMMANDS ---
+# --- ALL OTHER SLASH COMMANDS ---
 
 @bot.tree.command(name="verify", description="Link your Roblox Account")
 async def slash_verify(interaction: discord.Interaction, roblox_username: str):
@@ -132,6 +138,30 @@ async def slash_verify(interaction: discord.Interaction, roblox_username: str):
     embed.add_field(name="Step 2", value=f"Apne About mein ye code paste kar:\n**`{secret_code}`**", inline=False)
     embed.add_field(name="Step 3", value="Save kar aur niche wala button daba.", inline=False)
     
+    class VerifyView(discord.ui.View):
+        def __init__(self, discord_id, roblox_id, roblox_username, code):
+            super().__init__(timeout=600)
+            self.discord_id = discord_id
+            self.roblox_id = roblox_id
+            self.roblox_username = roblox_username
+            self.code = code
+
+        @discord.ui.button(label="Check My Profile", style=discord.ButtonStyle.green)
+        async def check_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if interaction.user.id != self.discord_id:
+                await interaction.response.send_message("❌ Ye tera verification nahi hai!", ephemeral=True)
+                return
+            
+            r = requests.get(f"https://users.roblox.com/v1/users/{self.roblox_id}")
+            desc = r.json().get("description", "")
+            
+            if self.code in desc:
+                save_link(self.discord_id, self.roblox_username)
+                await interaction.response.send_message(f"🎉 **Success!** Tera account link ho gaya hai as `{self.roblox_username}`!")
+                self.stop()
+            else:
+                await interaction.response.send_message("❌ Code nahi mila! Apna 'About' section theek se save kar.", ephemeral=True)
+                
     view = VerifyView(interaction.user.id, roblox_id, roblox_username, secret_code)
     await interaction.followup.send(embed=embed, view=view)
 
