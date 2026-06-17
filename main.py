@@ -21,14 +21,13 @@ MY_GUILD_ID = 1515815434115481771
 MOD_ROLE_ID = 1515815434115481775
 LOG_CHANNEL_ID = 1515815434811740173       
 CHAT_CHANNEL_ID = 1515986089213427803      
-REPORTS_CHANNEL_ID = 1516165426105811096  
+REPORTS_CHANNEL_ID = 1516166803678826536  
 
 intents = discord.Intents.default()
 intents.message_content = True 
 intents.members = True 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- DATABASE LOGIC ---
 def load_links():
     try:
         with open("links.json", "r") as f: return json.load(f)
@@ -54,9 +53,8 @@ async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
     bot.tree.copy_global_to(guild=MY_GUILD)
     await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is LIVE with ALL Commands Fixed! 🚀")
+    print("Bot is LIVE! (Smite Removed) 🚀")
 
-# --- TWO-WAY CROSS CHAT (FIXED) ---
 @bot.event
 async def on_message(message):
     if message.author.bot or message.channel.id != CHAT_CHANNEL_ID: return
@@ -70,9 +68,7 @@ async def on_message(message):
     await message.add_reaction("✅")
 
 
-# ========================================================
-# SAARI SLASH COMMANDS (KICK, WARN, ANNOUNCE RESTORED)
-# ========================================================
+# --- CORE ABILITIES & ADMIN COMMANDS ---
 
 @bot.tree.command(name="beam", description="Strike a player with the Big Beam")
 @app_commands.check(is_mod)
@@ -81,14 +77,6 @@ async def slash_beam(interaction: discord.Interaction, username: str):
     msg_data = {"message": json.dumps({"Command": "Beam", "Username": username, "Mod": interaction.user.name})}
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
     await interaction.followup.send(f"🌟🌌 **BIG BEAM ACTIVATED on `{username}`!**")
-
-@bot.tree.command(name="smite", description="Strike a player with lightning bolt")
-@app_commands.check(is_mod)
-async def slash_smite(interaction: discord.Interaction, username: str):
-    await interaction.response.defer()
-    msg_data = {"message": json.dumps({"Command": "Smite", "Username": username, "Mod": interaction.user.name})}
-    requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
-    await interaction.followup.send(f"⚡⚡ **SMITE CALLED on `{username}`!**")
 
 @bot.tree.command(name="nuke", description="Launch meteor strike")
 @app_commands.check(is_mod)
@@ -114,7 +102,6 @@ async def slash_unjail(interaction: discord.Interaction, username: str):
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
     await interaction.followup.send(f"🔓 **{username} Released!**")
 
-# ⚠️ MISSING POST RESTORED FOR INSTANT BAN
 @bot.tree.command(name="ban", description="Ban player")
 @app_commands.check(is_mod)
 async def slash_ban(interaction: discord.Interaction, username: str, reason: str = "Rules break"):
@@ -129,8 +116,6 @@ async def slash_ban(interaction: discord.Interaction, username: str, reason: str
     ban_info = json.dumps({"Reason": reason, "Mod": interaction.user.name})
     md5_hash = base64.b64encode(hashlib.md5(ban_info.encode()).digest()).decode()
     requests.post(ds_url, headers={"x-api-key": ROBLOX_API_KEY, "content-md5": md5_hash}, data=ban_info)
-    
-    # ⚠️ Yeh line gayab ho gayi thi, jisse game me instant kick nahi hota tha
     msg_data = {"message": json.dumps({"Command": "Ban", "Username": username, "Reason": reason, "Mod": interaction.user.name})}
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
     await interaction.followup.send(f"🚨 `{username}` has been permanently banned.")
@@ -146,7 +131,6 @@ async def slash_unban(interaction: discord.Interaction, username: str):
     requests.delete(f"https://apis.roblox.com/datastores/v1/universes/{UNIVERSE_ID}/standard-datastores/datastore/entries/entry?datastoreName=BanList&entryKey={user_id}", headers={"x-api-key": ROBLOX_API_KEY})
     await interaction.followup.send(f"✅ `{username}` unbanned.")
 
-# ⚠️ KICK COMMAND RESTORED
 @bot.tree.command(name="kick", description="Kick player from server")
 @app_commands.check(is_mod)
 async def slash_kick(interaction: discord.Interaction, username: str, reason: str = "Rule violation"):
@@ -155,7 +139,6 @@ async def slash_kick(interaction: discord.Interaction, username: str, reason: st
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
     await interaction.followup.send(f"👢 `{username}` kicked from the server.")
 
-# ⚠️ WARN COMMAND RESTORED
 @bot.tree.command(name="warn", description="Send warning on screen")
 @app_commands.check(is_mod)
 async def slash_warn(interaction: discord.Interaction, username: str, reason: str = "Warning!"):
@@ -164,7 +147,6 @@ async def slash_warn(interaction: discord.Interaction, username: str, reason: st
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
     await interaction.followup.send(f"⚠️ `{username}` has been warned.")
 
-# ⚠️ ANNOUNCE COMMAND RESTORED
 @bot.tree.command(name="announce", description="Send global announcement")
 @app_commands.check(is_mod)
 async def slash_announce(interaction: discord.Interaction, text: str):
