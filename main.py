@@ -9,7 +9,7 @@ import string
 from discord.ext import commands
 from discord import app_commands
 
-# Tokens and Keys (Railway Variables)
+# Tokens and Keys
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 ROBLOX_API_KEY = os.getenv("ROBLOX_API_KEY")
 
@@ -51,9 +51,12 @@ async def send_log(title, description, color):
 @bot.event
 async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
+    # Yeh line Discord ki memory se ghost commands delete karegi
+    bot.tree.clear_commands(guild=None)
+    await bot.tree.sync()
     bot.tree.copy_global_to(guild=MY_GUILD)
     await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is LIVE! (Smite Removed) 🚀")
+    print("Bot is LIVE! (Stable Version Restored) 🚀")
 
 @bot.event
 async def on_message(message):
@@ -67,8 +70,7 @@ async def on_message(message):
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCrossChat", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(cross_data))
     await message.add_reaction("✅")
 
-
-# --- CORE ABILITIES & ADMIN COMMANDS ---
+# --- COMMANDS ---
 
 @bot.tree.command(name="beam", description="Strike a player with the Big Beam")
 @app_commands.check(is_mod)
