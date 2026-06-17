@@ -21,7 +21,7 @@ MY_GUILD_ID = 1515815434115481771
 MOD_ROLE_ID = 1515815434115481775
 LOG_CHANNEL_ID = 1515815434811740173       
 CHAT_CHANNEL_ID = 1515986089213427803      
-REPORTS_CHANNEL_ID = 1516166803678826536  
+REPORTS_CHANNEL_ID = 1516165426105811096  
 
 intents = discord.Intents.default()
 intents.message_content = True 
@@ -55,7 +55,7 @@ async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
     bot.tree.copy_global_to(guild=MY_GUILD)
     await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is LIVE with Cosmic Nuke & Divine Smite! ⚡☄️")
+    print("Bot is LIVE with Anime Big Beam Ability! 🌟⚡")
 
 # --- TWO-WAY CROSS CHAT ---
 @bot.event
@@ -70,33 +70,31 @@ async def on_message(message):
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCrossChat", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(cross_data))
     await message.add_reaction("✅")
 
-# --- DIVINE SMITE / LIGHTNING COMMAND (NEW! ⚡) ---
-@bot.tree.command(name="smite", description="Strike a player with a realistic, high-voltage jagged lightning bolt")
+# --- ANIME BIG BEAM ABILITY COMMAND (NAYA! 🌟) ---
+@bot.tree.command(name="beam", description="Strike a player with the custom open-source Big Beam anime ability")
+@app_commands.check(is_mod)
+async def slash_beam(interaction: discord.Interaction, username: str):
+    await interaction.response.defer()
+    msg_data = {"message": json.dumps({"Command": "Beam", "Username": username, "Mod": interaction.user.name})}
+    response = requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
+    
+    if response.status_code in [200, 204]:
+        await interaction.followup.send(f"🌟🌌 **BIG BEAM ACTIVATED!** Energy blast is crashing onto `{username}`!")
+        await send_log("🌌 Anime Beam Discharged", f"**Target:** {username}\n**Invoker:** {interaction.user.name}", discord.Color.purple())
+    else:
+        await interaction.followup.send("❌ Roblox API Error!")
+
+# --- DIVINE SMITE COMMAND ---
+@bot.tree.command(name="smite", description="Strike a player with a realistic jagged lightning bolt")
 @app_commands.check(is_mod)
 async def slash_smite(interaction: discord.Interaction, username: str):
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Command": "Smite", "Username": username, "Mod": interaction.user.name})}
     response = requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
-    
-    if response.status_code in [200, 204]:
-        await interaction.followup.send(f"⚡⚡ **DIVINE SMITE CALLED!** Judgment is falling upon `{username}`!")
-        await send_log("⚡ Divine Smite Delivered", f"**Target:** {username}\n**Executed By:** {interaction.user.name}\n**Verdict:** Vaporized", discord.Color.blue())
-    else:
-        await interaction.followup.send("❌ Roblox API Error!")
+    if response.status_code in [200, 204]: await interaction.followup.send(f"⚡⚡ **SMITE CALLED!** Judgment falling upon `{username}`!")
+    else: await interaction.followup.send("❌ Roblox API Error!")
 
-# --- METEOR NUKE COMMAND ---
-@bot.tree.command(name="nuke", description="Launch a massive cosmic meteor strike on a player")
-@app_commands.check(is_mod)
-async def slash_nuke(interaction: discord.Interaction, username: str):
-    await interaction.response.defer()
-    msg_data = {"message": json.dumps({"Command": "Nuke", "Username": username, "Mod": interaction.user.name})}
-    response = requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
-    if response.status_code in [200, 204]:
-        await interaction.followup.send(f"☄️🚀 **COSMIC NUKE LAUNCHED!** Meteor heading towards `{username}`!")
-    else:
-        await interaction.followup.send("❌ Roblox API Error!")
-
-# --- ALL OTHER SLASH COMMANDS ---
+# --- ALL OTHER SLASH COMMANDS (JAIL, SHUTDOWN, ETC.) ---
 @bot.tree.command(name="jail", description="Arrest and cage a player in jail")
 @app_commands.check(is_mod)
 async def slash_jail(interaction: discord.Interaction, username: str, reason: str, duration: int = 0):
