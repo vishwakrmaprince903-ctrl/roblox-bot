@@ -51,12 +51,13 @@ async def send_log(title, description, color):
 @bot.event
 async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
-    # Yeh line Discord ki memory se ghost commands delete karegi
+    # FORCE CLEAN GHOST COMMANDS
     bot.tree.clear_commands(guild=None)
     await bot.tree.sync()
+    # SYNC NEW COMMANDS
     bot.tree.copy_global_to(guild=MY_GUILD)
     await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is LIVE! (Stable Version Restored) 🚀")
+    print("Bot is LIVE! Fresh System Restored. 🚀")
 
 @bot.event
 async def on_message(message):
@@ -70,7 +71,9 @@ async def on_message(message):
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCrossChat", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(cross_data))
     await message.add_reaction("✅")
 
-# --- COMMANDS ---
+# ========================================================
+# FRESH COMMANDS SYSTEM
+# ========================================================
 
 @bot.tree.command(name="beam", description="Strike a player with the Big Beam")
 @app_commands.check(is_mod)
