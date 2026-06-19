@@ -40,15 +40,18 @@ def save_link(discord_id, roblox_name):
     links[str(discord_id)] = roblox_name
     with open("links.json", "w") as f: json.dump(links, f)
 
-async def is_mod(interaction: discord.Interaction):
+# 🔐 NEW: Checked for BOTH Mod Role AND Verified Account!
+async def is_mod_and_verified(interaction: discord.Interaction):
+    links = load_links()
+    if str(interaction.user.id) not in links: return False
     if interaction.user.guild_permissions.administrator: return True
     return any(role.id == MOD_ROLE_ID for role in interaction.user.roles)
 
 @bot.event
 async def on_ready():
     try:
-        bot.tree.clear_commands(guild=None) # Clear globals
-        synced = await bot.tree.sync(guild=MY_GUILD) # Force sync to your server
+        bot.tree.clear_commands(guild=None) 
+        synced = await bot.tree.sync(guild=MY_GUILD) 
         print(f"✅ Bot is LIVE! Successfully synced {len(synced)} commands to your server. 🚀")
     except Exception as e:
         print(f"❌ Sync failed: {e}")
@@ -56,9 +59,17 @@ async def on_ready():
 @bot.event
 async def on_message(message):
     if message.author.bot or message.channel.id != CHAT_CHANNEL_ID: return
+    
+    # 🔐 Security 1: Must be MOD
+    is_mod = message.author.guild_permissions.administrator or any(role.id == MOD_ROLE_ID for role in message.author.roles)
+    if not is_mod: return
+    
+    # 🔐 Security 2: Must be Verified
     links = load_links()
     discord_id = str(message.author.id)
     if discord_id not in links: return
+    
+    # ✈️ Send to Roblox
     roblox_name = links[discord_id]
     top_role = message.author.top_role.name 
     cross_data = {"message": json.dumps({"Role": top_role, "Username": roblox_name, "Message": message.content})}
@@ -66,11 +77,11 @@ async def on_message(message):
     await message.add_reaction("✅")
 
 # ========================================================
-# FRESH COMMANDS SYSTEM (Force Mapped to Your Server)
+# COMMANDS
 # ========================================================
 
 @bot.tree.command(name="beam", description="Strike a player with the Big Beam", guild=MY_GUILD)
-@app_commands.check(is_mod)
+@app_commands.check(is_mod_and_verified)
 async def slash_beam(interaction: discord.Interaction, username: str):
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Command": "Beam", "Username": username, "Mod": interaction.user.name})}
@@ -78,7 +89,7 @@ async def slash_beam(interaction: discord.Interaction, username: str):
     await interaction.followup.send(f"🌟🌌 **BIG BEAM ACTIVATED on `{username}`!**")
 
 @bot.tree.command(name="nuke", description="Launch meteor strike", guild=MY_GUILD)
-@app_commands.check(is_mod)
+@app_commands.check(is_mod_and_verified)
 async def slash_nuke(interaction: discord.Interaction, username: str):
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Command": "Nuke", "Username": username, "Mod": interaction.user.name})}
@@ -86,7 +97,7 @@ async def slash_nuke(interaction: discord.Interaction, username: str):
     await interaction.followup.send(f"☄️🚀 **NUKE LAUNCHED on `{username}`!**")
 
 @bot.tree.command(name="jail", description="Cage a player", guild=MY_GUILD)
-@app_commands.check(is_mod)
+@app_commands.check(is_mod_and_verified)
 async def slash_jail(interaction: discord.Interaction, username: str, reason: str, duration: int = 0):
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Command": "Jail", "Username": username, "Reason": reason, "Duration": duration, "Mod": interaction.user.name})}
@@ -94,7 +105,7 @@ async def slash_jail(interaction: discord.Interaction, username: str, reason: st
     await interaction.followup.send(f"⛓️ **{username} Jailed!**")
 
 @bot.tree.command(name="unjail", description="Release a player", guild=MY_GUILD)
-@app_commands.check(is_mod)
+@app_commands.check(is_mod_and_verified)
 async def slash_unjail(interaction: discord.Interaction, username: str):
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Command": "Unjail", "Username": username})}
@@ -102,7 +113,7 @@ async def slash_unjail(interaction: discord.Interaction, username: str):
     await interaction.followup.send(f"🔓 **{username} Released!**")
 
 @bot.tree.command(name="ban", description="Ban player", guild=MY_GUILD)
-@app_commands.check(is_mod)
+@app_commands.check(is_mod_and_verified)
 async def slash_ban(interaction: discord.Interaction, username: str, reason: str = "Rules break"):
     await interaction.response.defer()
     r = requests.post("https://users.roblox.com/v1/usernames/users", json={"usernames": [username], "excludeBannedUsers": False})
@@ -120,7 +131,7 @@ async def slash_ban(interaction: discord.Interaction, username: str, reason: str
     await interaction.followup.send(f"🚨 `{username}` has been permanently banned.")
 
 @bot.tree.command(name="unban", description="Unban player", guild=MY_GUILD)
-@app_commands.check(is_mod)
+@app_commands.check(is_mod_and_verified)
 async def slash_unban(interaction: discord.Interaction, username: str):
     await interaction.response.defer()
     r = requests.post("https://users.roblox.com/v1/usernames/users", json={"usernames": [username], "excludeBannedUsers": False})
@@ -130,16 +141,16 @@ async def slash_unban(interaction: discord.Interaction, username: str):
     requests.delete(f"https://apis.roblox.com/datastores/v1/universes/{UNIVERSE_ID}/standard-datastores/datastore/entries/entry?datastoreName=BanList&entryKey={user_id}", headers={"x-api-key": ROBLOX_API_KEY})
     await interaction.followup.send(f"✅ `{username}` unbanned.")
 
-@bot.tree.command(name="kick", description="Kick player from server", guild=MY_GUILD)
-@app_commands.check(is_mod)
+@bot.tree.command(name="kick", description="Kick player", guild=MY_GUILD)
+@app_commands.check(is_mod_and_verified)
 async def slash_kick(interaction: discord.Interaction, username: str, reason: str = "Rule violation"):
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Command": "Kick", "Username": username, "Reason": reason})}
     requests.post(f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/DiscordCommands", headers={"x-api-key": ROBLOX_API_KEY, "Content-Type": "application/json"}, data=json.dumps(msg_data))
     await interaction.followup.send(f"👢 `{username}` kicked from the server.")
 
-@bot.tree.command(name="warn", description="Send warning on screen", guild=MY_GUILD)
-@app_commands.check(is_mod)
+@bot.tree.command(name="warn", description="Send warning", guild=MY_GUILD)
+@app_commands.check(is_mod_and_verified)
 async def slash_warn(interaction: discord.Interaction, username: str, reason: str = "Warning!"):
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Command": "Warn", "Username": username, "Reason": reason})}
@@ -147,7 +158,7 @@ async def slash_warn(interaction: discord.Interaction, username: str, reason: st
     await interaction.followup.send(f"⚠️ `{username}` has been warned.")
 
 @bot.tree.command(name="announce", description="Send global announcement", guild=MY_GUILD)
-@app_commands.check(is_mod)
+@app_commands.check(is_mod_and_verified)
 async def slash_announce(interaction: discord.Interaction, text: str):
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Text": text})}
@@ -155,7 +166,7 @@ async def slash_announce(interaction: discord.Interaction, text: str):
     await interaction.followup.send(f"📢 Announced: {text}")
 
 @bot.tree.command(name="shutdown", description="Shutdown servers", guild=MY_GUILD)
-@app_commands.check(is_mod)
+@app_commands.check(is_mod_and_verified)
 async def slash_shutdown(interaction: discord.Interaction, reason: str, time: int = 60):
     await interaction.response.defer()
     msg_data = {"message": json.dumps({"Reason": reason, "Time": time})}
