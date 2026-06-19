@@ -13,7 +13,7 @@ from discord import app_commands
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 ROBLOX_API_KEY = os.getenv("ROBLOX_API_KEY")
 
-# ⚠️ APNI ASLI UNIVERSE ID KO IS QUOTES KE ANDAR RAKHNA BHAI!
+# ⚠️ APNI ASLI UNIVERSE ID YAHAN DAAL
 UNIVERSE_ID = "558298"
 
 # Tere Saare IDs
@@ -21,7 +21,7 @@ MY_GUILD_ID = 1515815434115481771
 MOD_ROLE_ID = 1515815434115481775
 LOG_CHANNEL_ID = 1515815434811740173       
 CHAT_CHANNEL_ID = 1515986089213427803      
-REPORTS_CHANNEL_ID = 1516166803678826536  
+REPORTS_CHANNEL_ID = 1516165426105811096  
 
 intents = discord.Intents.default()
 intents.message_content = True 
@@ -42,22 +42,17 @@ async def is_mod(interaction: discord.Interaction):
     if interaction.user.guild_permissions.administrator: return True
     return any(role.id == MOD_ROLE_ID for role in interaction.user.roles)
 
-async def send_log(title, description, color):
-    channel = bot.get_channel(LOG_CHANNEL_ID)
-    if channel:
-        embed = discord.Embed(title=title, description=description, color=color)
-        await channel.send(embed=embed)
-
 @bot.event
 async def on_ready():
     MY_GUILD = discord.Object(id=MY_GUILD_ID)
-    # FORCE CLEAN GHOST COMMANDS
-    bot.tree.clear_commands(guild=None)
-    await bot.tree.sync()
-    # SYNC NEW COMMANDS
-    bot.tree.copy_global_to(guild=MY_GUILD)
-    await bot.tree.sync(guild=MY_GUILD)
-    print("Bot is LIVE! Fresh System Restored. 🚀")
+    try:
+        # Purane cache ko clear karega aur naye commands force-sync karega
+        bot.tree.clear_commands(guild=None)
+        bot.tree.copy_global_to(guild=MY_GUILD)
+        synced = await bot.tree.sync(guild=MY_GUILD)
+        print(f"✅ Bot is LIVE! Successfully synced {len(synced)} commands. 🚀")
+    except Exception as e:
+        print(f"❌ Sync failed: {e}")
 
 @bot.event
 async def on_message(message):
@@ -72,7 +67,7 @@ async def on_message(message):
     await message.add_reaction("✅")
 
 # ========================================================
-# FRESH COMMANDS SYSTEM
+# FRESH COMMANDS SYSTEM (No Smite, Only Working Features)
 # ========================================================
 
 @bot.tree.command(name="beam", description="Strike a player with the Big Beam")
